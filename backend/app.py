@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from db import get_connection
+from mysql.connector.errors import IntegrityError
+
 
 app = Flask(__name__)
 CORS(app)
@@ -8,11 +10,30 @@ CORS(app)
 # ===============================
 # SECURITY WHITELISTS
 # ===============================
-ALLOWED_DATABASES = ["university", "publication"]
-ALLOWED_TABLES = [
-    "student", "course", "enrolled_in",
-    "academic_department","researcher", "lab_equipment", "uses","journal_issue","research_paper","authors"
-]
+ALLOWED_DATABASES = ["university", "research"]
+
+ALLOWED_TABLES = {
+    "university": [
+        "academic_department",
+        "classified_under",
+        "course",
+        "enrolled_in",
+        "final_project",
+        "instructor",
+        "student",
+        "subject_area",
+        "taught_by",
+    ],
+    "research": [
+        "authors",
+        "journal_issue",
+        "lab_equipment",
+        "research_paper",
+        "researcher",
+        "uses",
+    ],
+}
+
 
 # ===============================
 # HEALTH CHECK
@@ -47,8 +68,12 @@ def show_tables(db):
 # ===============================
 @app.route("/api/<db>/tables/<table>/schema", methods=["GET"])
 def table_schema(db, table):
-    if db.lower() not in ALLOWED_DATABASES or table.lower() not in ALLOWED_TABLES:
+    if (
+        db.lower() not in ALLOWED_DATABASES
+        or table.lower() not in ALLOWED_TABLES.get(db.lower(), [])
+    ):
         return jsonify({"error": "Invalid database or table"}), 400
+
 
     conn = get_connection(db)
     cur = conn.cursor(dictionary=True)
@@ -64,8 +89,12 @@ def table_schema(db, table):
 # ===============================
 @app.route("/api/<db>/tables/<table>/data", methods=["GET"])
 def table_data(db, table):
-    if db.lower() not in ALLOWED_DATABASES or table.lower() not in ALLOWED_TABLES:
+    if (
+    db.lower() not in ALLOWED_DATABASES
+    or table.lower() not in ALLOWED_TABLES.get(db.lower(), [])
+    ):
         return jsonify({"error": "Invalid database or table"}), 400
+
 
     conn = get_connection(db)
     cur = conn.cursor(dictionary=True)
@@ -81,23 +110,64 @@ def table_data(db, table):
 # ===============================
 @app.route("/api/<db>/tables/<table>/insert", methods=["POST"])
 def insert_data(db, table):
-    if db.lower() not in ALLOWED_DATABASES or table.lower() not in ALLOWED_TABLES:
-        return jsonify({"error": "Invalid database or table"}), 400
+    if (
+    db.lower() not in ALLOWED_DATABASES
+    or table.lower() not in ALLOWED_TABLES.get(db.lower(), [])
+    ):return jsonify({"error": "Invalid database or table"}), 400
+
 
     data = request.json
+
+    if not data or len(data) == 0:
+        return jsonify({"error": "No data provided"}), 400
+
     columns = ", ".join(data.keys())
     placeholders = ", ".join(["%s"] * len(data))
+    values = tuple(data.values())
 
-    conn = get_connection(db)
-    cur = conn.cursor()
-    cur.execute(
-        f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
-        tuple(data.values())
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_connection(db)
+        cur = conn.cursor()
 
-    return jsonify({"message": "Inserted successfully"})
+        cur.execute(
+            f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+            values
+        )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Inserted successfully"}), 201
+
+    except IntegrityError as e:
+        msg = str(e).lower()
+
+        # 🔑 DUPLICATE PRIMARY KEY (Composite or Single)
+        if "duplicate" in msg:
+            return jsonify({
+                "error": "Duplicate primary key value. This row already exists."
+            }), 409
+
+        # 🔗 FOREIGN KEY VIOLATION
+        if "foreign key constraint fails" in msg:
+            return jsonify({
+                "error": (
+                    "Foreign key constraint failed. "
+                    "Referenced value does not exist in parent table."
+                )
+            }), 409
+
+        # ❓ OTHER INTEGRITY ISSUE
+        return jsonify({
+            "error": "Integrity constraint violation"
+        }), 409
+
+    except Exception as e:
+        return jsonify({
+            "error": "Insert failed due to server error",
+            "details": str(e)
+        }), 500
+
 
 
 # ===============================
@@ -105,28 +175,77 @@ def insert_data(db, table):
 # ===============================
 @app.route("/api/<db>/tables/<table>/update", methods=["PUT"])
 def update_data(db, table):
-    if db.lower() not in ALLOWED_DATABASES or table.lower() not in ALLOWED_TABLES:
-        return jsonify({"error": "Invalid database or table"}), 400
+    if (
+    db.lower() not in ALLOWED_DATABASES
+    or table.lower() not in ALLOWED_TABLES.get(db.lower(), [])
+    ):return jsonify({"error": "Invalid database or table"}), 400
 
     body = request.json
+
+    if not body or "data" not in body or "where" not in body:
+        return jsonify({"error": "Invalid request format"}), 400
+
     data = body["data"]
     where = body["where"]
 
+    if not data or not where:
+        return jsonify({
+            "error": "Update data or primary key missing"
+        }), 400
+
     set_clause = ", ".join([f"{k}=%s" for k in data])
     where_clause = " AND ".join([f"{k}=%s" for k in where])
-
     values = list(data.values()) + list(where.values())
 
-    conn = get_connection(db)
-    cur = conn.cursor()
-    cur.execute(
-        f"UPDATE {table} SET {set_clause} WHERE {where_clause}",
-        values
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_connection(db)
+        cur = conn.cursor()
 
-    return jsonify({"message": "Updated successfully"})
+        cur.execute(
+            f"UPDATE {table} SET {set_clause} WHERE {where_clause}",
+            values
+        )
+
+        conn.commit()
+
+        # 🔍 No row matched WHERE clause
+        if cur.rowcount == 0:
+            conn.close()
+            return jsonify({
+                "error": "No matching row found to update"
+            }), 404
+
+        conn.close()
+        return jsonify({"message": "Updated successfully"}), 200
+
+    except IntegrityError as e:
+        msg = str(e).lower()
+
+        # 🔗 FOREIGN KEY VIOLATION
+        if "foreign key constraint fails" in msg:
+            return jsonify({
+                "error": (
+                    "Foreign key constraint failed. "
+                    "Referenced value does not exist or is in use."
+                )
+            }), 409
+
+        # 🔑 DUPLICATE PRIMARY KEY (composite or single)
+        if "duplicate" in msg:
+            return jsonify({
+                "error": "Duplicate primary key value. Update not allowed."
+            }), 409
+
+        # ❓ OTHER INTEGRITY ISSUE
+        return jsonify({
+            "error": "Integrity constraint violation"
+        }), 409
+
+    except Exception as e:
+        return jsonify({
+            "error": "Update failed due to server error",
+            "details": str(e)
+        }), 500
 
 
 # ===============================
@@ -134,22 +253,70 @@ def update_data(db, table):
 # ===============================
 @app.route("/api/<db>/tables/<table>/delete", methods=["DELETE"])
 def delete_data(db, table):
-    if db.lower() not in ALLOWED_DATABASES or table.lower() not in ALLOWED_TABLES:
-        return jsonify({"error": "Invalid database or table"}), 400
+    if (
+    db.lower() not in ALLOWED_DATABASES
+    or table.lower() not in ALLOWED_TABLES.get(db.lower(), [])
+    ):return jsonify({"error": "Invalid database or table"}), 400
 
-    where = request.json["where"]
+    body = request.json
+
+    if not body or "where" not in body:
+        return jsonify({"error": "Delete condition missing"}), 400
+
+    where = body["where"]
+
+    if not where or len(where) == 0:
+        return jsonify({
+            "error": "Primary key condition required for delete"
+        }), 400
+
     clause = " AND ".join([f"{k}=%s" for k in where])
+    values = tuple(where.values())
 
-    conn = get_connection(db)
-    cur = conn.cursor()
-    cur.execute(
-        f"DELETE FROM {table} WHERE {clause}",
-        tuple(where.values())
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_connection(db)
+        cur = conn.cursor()
 
-    return jsonify({"message": "Deleted successfully"})
+        cur.execute(
+            f"DELETE FROM {table} WHERE {clause}",
+            values
+        )
+
+        conn.commit()
+
+        # 🔍 No row matched
+        if cur.rowcount == 0:
+            conn.close()
+            return jsonify({
+                "error": "No matching row found to delete"
+            }), 404
+
+        conn.close()
+        return jsonify({"message": "Deleted successfully"}), 200
+
+    except IntegrityError as e:
+        msg = str(e).lower()
+
+        # 🔗 FOREIGN KEY DEPENDENCY
+        if "foreign key constraint fails" in msg:
+            return jsonify({
+                "error": (
+                    "Cannot delete this row because it is referenced "
+                    "by another table (foreign key constraint)"
+                )
+            }), 409
+
+        # ❓ OTHER INTEGRITY ISSUE
+        return jsonify({
+            "error": "Integrity constraint violation"
+        }), 409
+
+    except Exception as e:
+        return jsonify({
+            "error": "Delete failed due to server error",
+            "details": str(e)
+        }), 500
+
 
 
 # ===============================
