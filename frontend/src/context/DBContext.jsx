@@ -209,8 +209,8 @@ export function DBProvider({ children }) {
     try {
       setDatabase(db);
       setTables([]);
-      setSchema({});
-      setData({});
+      setSchema([]);
+      setData([]);
       setReportData({});
       setReports([]);
       await fetchTables(db);

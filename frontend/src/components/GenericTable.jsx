@@ -1,5 +1,5 @@
 import { Trash2, Save, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useDB } from "../context/DBContext";
 
 export default function GenericTable({ table }) {
@@ -11,18 +11,32 @@ export default function GenericTable({ table }) {
     updateRow,
     insertRow,
     deleteRow,
+    database,
   } = useDB();
 
   /* ===============================
-     PRIMARY KEY DETECTION (COMPOSITE SAFE)
+     PRIMARY KEY DETECTION (DERIVED)
      =============================== */
-  const pkColumns = schema.filter((c) => c.Key === "PRI").map((c) => c.Field);
+  const pkColumns = useMemo(
+    () => schema.filter((c) => c.Key === "PRI").map((c) => c.Field),
+    [schema]
+  );
 
-  /* Stable composite row identity (based on ORIGINAL PK) */
-  const makeRowKey = (row) =>
-    pkColumns.length
-      ? pkColumns.map((k) => row[k]).join("::")
-      : JSON.stringify(row);
+  /* ===============================
+     STABLE ROW KEY (DERIVED FUNCTION)
+     =============================== */
+  const makeRowKey = useCallback(
+    (row, index) => {
+      if (pkColumns.length) {
+        const key = pkColumns.map((k) => row[k]).join("::");
+        if (key && !key.includes("null") && key !== "::") {
+          return key;
+        }
+      }
+      return `row-${index}`;
+    },
+    [pkColumns]
+  );
 
   /* ===============================
      STATE
@@ -35,14 +49,18 @@ export default function GenericTable({ table }) {
   const [newRowDirty, setNewRowDirty] = useState(false);
 
   /* ===============================
-     LOAD SCHEMA + DATA
+     LOAD SCHEMA + DATA (STRICTMODE SAFE)
      =============================== */
+  const fetchedTableRef = useRef(null);
+
   useEffect(() => {
+    if (fetchedTableRef.current === table) return;
+
+    fetchedTableRef.current = table;
+
     fetchSchema(table);
     fetchTableData(table);
-    // console.log(schema);
-    // console.log(data);
-  }, [table]);
+  }, [table, database, fetchSchema, fetchTableData]);
 
   /* ===============================
      SYNC DATA → DRAFT + ORIGINAL SNAPSHOT
@@ -51,16 +69,16 @@ export default function GenericTable({ table }) {
     const draftMap = {};
     const originalMap = {};
 
-    data.forEach((r) => {
-      const key = makeRowKey(r);
-      draftMap[key] = { ...r };
-      originalMap[key] = { ...r };
+    data.forEach((row, index) => {
+      const key = makeRowKey(row, index);
+      draftMap[key] = { ...row };
+      originalMap[key] = { ...row };
     });
 
     setDraftRows(draftMap);
     setOriginalRows(originalMap);
     setDirtyRows(new Set());
-  }, [data, schema]);
+  }, [data, makeRowKey]);
 
   /* ===============================
      HANDLERS
@@ -75,8 +93,6 @@ export default function GenericTable({ table }) {
 
   /* ===============================
      UPDATE ROW
-     - WHERE → OLD PK
-     - SET   → NEW VALUES (including PK)
      =============================== */
   const saveRow = (rowKey) => {
     const updatedRow = draftRows[rowKey];
@@ -119,7 +135,6 @@ export default function GenericTable({ table }) {
         <thead className="sticky top-0 bg-neutral-900 z-10">
           <tr>
             <th className="w-8 border border-neutral-700" />
-
             {schema.map((col) => (
               <th
                 key={col.Field}
@@ -133,16 +148,14 @@ export default function GenericTable({ table }) {
                 </div>
               </th>
             ))}
-
             <th className="w-10 border border-neutral-700" />
           </tr>
         </thead>
 
-        {/* ================= BODY ================= */}
         <tbody>
           {/* EXISTING ROWS */}
-          {data.map((row) => {
-            const rowKey = makeRowKey(row);
+          {data.map((row, index) => {
+            const rowKey = makeRowKey(row, index);
             const draft = draftRows[rowKey] || row;
             const isDirty = dirtyRows.has(rowKey);
 
@@ -153,8 +166,7 @@ export default function GenericTable({ table }) {
                   isDirty ? "bg-neutral-850" : ""
                 }`}
               >
-                {/* DELETE */}
-                <td className="border border-neutral-800 px-2 text-neutral-500">
+                <td className="border border-neutral-800 px-2">
                   <button
                     onClick={() => {
                       const where = {};
@@ -167,28 +179,25 @@ export default function GenericTable({ table }) {
                   </button>
                 </td>
 
-                {/* CELLS */}
-                {schema.map((col) => {
-                  const field = col.Field;
-                  return (
-                    <td
-                      key={field}
-                      className="border border-neutral-800 px-2 py-1"
-                    >
-                      <input
-                        value={draft[field] ?? ""}
-                        onChange={(e) =>
-                          onCellChange(rowKey, field, e.target.value)
-                        }
-                        className={`w-full bg-transparent focus:outline-none ${
-                          draft[field] !== row[field] ? "text-yellow-300" : ""
-                        }`}
-                      />
-                    </td>
-                  );
-                })}
+                {schema.map((col) => (
+                  <td
+                    key={col.Field}
+                    className="border border-neutral-800 px-2 py-1"
+                  >
+                    <input
+                      value={draft[col.Field] ?? ""}
+                      onChange={(e) =>
+                        onCellChange(rowKey, col.Field, e.target.value)
+                      }
+                      className={`w-full bg-transparent focus:outline-none ${
+                        draft[col.Field] !== row[col.Field]
+                          ? "text-yellow-300"
+                          : ""
+                      }`}
+                    />
+                  </td>
+                ))}
 
-                {/* SAVE */}
                 <td className="border border-neutral-800 text-center">
                   {isDirty && (
                     <button
@@ -203,7 +212,7 @@ export default function GenericTable({ table }) {
             );
           })}
 
-          {/* ================= NEW ROW ================= */}
+          {/* NEW ROW */}
           <tr
             className={`border-t border-neutral-800 ${
               newRowDirty ? "bg-neutral-850" : ""
@@ -222,9 +231,7 @@ export default function GenericTable({ table }) {
                   value={newRow[col.Field] ?? ""}
                   onChange={(e) => onNewCellChange(col.Field, e.target.value)}
                   placeholder={`New ${col.Field}`}
-                  className={`w-full bg-transparent focus:outline-none ${
-                    newRowDirty ? "text-yellow-300" : ""
-                  }`}
+                  className="w-full bg-transparent focus:outline-none"
                 />
               </td>
             ))}
