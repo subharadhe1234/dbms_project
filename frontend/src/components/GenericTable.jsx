@@ -22,21 +22,20 @@ export default function GenericTable({ table }) {
     [schema]
   );
 
+  const rowIdRef = useRef(new WeakMap());
+
   /* ===============================
      STABLE ROW KEY (DERIVED FUNCTION)
      =============================== */
-  const makeRowKey = useCallback(
-    (row, index) => {
-      if (pkColumns.length) {
-        const key = pkColumns.map((k) => row[k]).join("::");
-        if (key && !key.includes("null") && key !== "::") {
-          return key;
-        }
-      }
-      return `row-${index}`;
-    },
-    [pkColumns]
-  );
+  const makeRowKey = useCallback((row) => {
+    if (!rowIdRef.current.has(row)) {
+      rowIdRef.current.set(
+        row,
+        crypto.randomUUID() // stable, unique, immutable
+      );
+    }
+    return rowIdRef.current.get(row);
+  }, []);
 
   /* ===============================
      STATE
@@ -70,7 +69,7 @@ export default function GenericTable({ table }) {
     const originalMap = {};
 
     data.forEach((row, index) => {
-      const key = makeRowKey(row, index);
+      const key = makeRowKey(row);
       draftMap[key] = { ...row };
       originalMap[key] = { ...row };
     });
@@ -155,7 +154,7 @@ export default function GenericTable({ table }) {
         <tbody>
           {/* EXISTING ROWS */}
           {data.map((row, index) => {
-            const rowKey = makeRowKey(row, index);
+            const rowKey = makeRowKey(row);
             const draft = draftRows[rowKey] || row;
             const isDirty = dirtyRows.has(rowKey);
 

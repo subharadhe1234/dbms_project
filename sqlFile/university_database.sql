@@ -1,9 +1,135 @@
--- Academic_Department Table
+/* =====================================================
+   UNIVERSITY DATABASE
+   SCHEMA CREATION
+   ===================================================== */
+
+-- ===============================
+-- Academic_Department
+-- ===============================
 CREATE TABLE Academic_Department (
   Name VARCHAR(50) PRIMARY KEY,
-  Location VARCHAR(100)
+  Location VARCHAR(100) NOT NULL
 );
 
+-- ===============================
+-- Course
+-- ===============================
+CREATE TABLE Course (
+  Title VARCHAR(50) NOT NULL,
+  Year INT NOT NULL,
+  Duration INT NOT NULL,
+  Syllabus TEXT,
+  Department_Name VARCHAR(50) NOT NULL,
+  PRIMARY KEY (Title, Year),
+  FOREIGN KEY (Department_Name)
+    REFERENCES Academic_Department(Name)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+);
+
+-- ===============================
+-- Subject_Area
+-- ===============================
+CREATE TABLE Subject_Area (
+  Name VARCHAR(50) PRIMARY KEY
+);
+
+-- ===============================
+-- Classified_Under
+-- ===============================
+CREATE TABLE Classified_Under (
+  Title VARCHAR(50) NOT NULL,
+  Year INT NOT NULL,
+  Name VARCHAR(50) NOT NULL,
+  PRIMARY KEY (Title, Year, Name),
+  FOREIGN KEY (Title, Year)
+    REFERENCES Course(Title, Year)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
+  FOREIGN KEY (Name)
+    REFERENCES Subject_Area(Name)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+);
+
+-- ===============================
+-- Instructor
+-- ===============================
+CREATE TABLE Instructor (
+  DOB DATE NOT NULL,
+  Name VARCHAR(50) NOT NULL,
+  PRIMARY KEY (DOB, Name)
+);
+
+-- ===============================
+-- Taught_By
+-- ===============================
+CREATE TABLE Taught_By (
+  Name VARCHAR(50) NOT NULL,
+  DOB DATE NOT NULL,
+  Title VARCHAR(50) NOT NULL,
+  Year INT NOT NULL,
+  PRIMARY KEY (Name, DOB, Title, Year),
+  FOREIGN KEY (DOB, Name)
+    REFERENCES Instructor(DOB, Name)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
+  FOREIGN KEY (Title, Year)
+    REFERENCES Course(Title, Year)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+);
+
+-- ===============================
+-- Student
+-- ===============================
+CREATE TABLE Student (
+  Name VARCHAR(50) NOT NULL,
+  DOB DATE NOT NULL,
+  PRIMARY KEY (Name, DOB)
+);
+
+-- ===============================
+-- Enrolled_In
+-- ===============================
+CREATE TABLE Enrolled_In (
+  Name VARCHAR(50) NOT NULL,
+  DOB DATE NOT NULL,
+  Title VARCHAR(50) NOT NULL,
+  Year INT NOT NULL,
+  Grade CHAR(2),
+  PRIMARY KEY (Name, DOB, Title, Year),
+  FOREIGN KEY (Name, DOB)
+    REFERENCES Student(Name, DOB)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
+  FOREIGN KEY (Title, Year)
+    REFERENCES Course(Title, Year)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+);
+
+-- ===============================
+-- Final_Project
+-- ===============================
+CREATE TABLE Final_Project (
+  PId VARCHAR(10) PRIMARY KEY,
+  Name VARCHAR(50) NOT NULL,
+  SName VARCHAR(50) NOT NULL,
+  DOB DATE NOT NULL,
+  Title VARCHAR(50) NOT NULL,
+  Year INT NOT NULL,
+  FOREIGN KEY (SName, DOB, Title, Year)
+    REFERENCES Enrolled_In(Name, DOB, Title, Year)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+);
+
+/* =====================================================
+   DATA INSERTION
+   ===================================================== */
+
+-- Academic_Department
 INSERT INTO Academic_Department VALUES
 ('Physics', 'Bldg A'),
 ('Chemistry', 'Bldg B'),
@@ -18,17 +144,7 @@ INSERT INTO Academic_Department VALUES
 ('History', 'Bldg K'),
 ('Philosophy', 'Bldg L');
 
--- Course Table
-CREATE TABLE Course (
-  Title VARCHAR(50),
-  Year INT,
-  Duration INT,
-  Syllabus TEXT,
-  Department_Name VARCHAR(50) NOT NULL,
-  PRIMARY KEY (Title, Year),
-  FOREIGN KEY (Department_Name) REFERENCES Academic_Department(Name)
-);
-
+-- Course
 INSERT INTO Course VALUES
 ('Quantum Mechanics', 2022, 1, 'Wave functions, uncertainty, operators', 'Physics'),
 ('Organic Chemistry', 2022, 1, 'Hydrocarbons, reactions, spectroscopy', 'Chemistry'),
@@ -43,11 +159,7 @@ INSERT INTO Course VALUES
 ('World History', 2022, 1, 'Civilizations, revolutions, cultures', 'History'),
 ('Logic', 2022, 1, 'Propositions, arguments, proofs', 'Philosophy');
 
--- Subject_Area Table
-CREATE TABLE Subject_Area (
-  Name VARCHAR(50) PRIMARY KEY
-);
-
+-- Subject_Area
 INSERT INTO Subject_Area VALUES
 ('Quantum Physics'),
 ('Organic Chemistry'),
@@ -62,16 +174,7 @@ INSERT INTO Subject_Area VALUES
 ('Ancient Civilizations'),
 ('Formal Logic');
 
--- Classified_Under Table
-CREATE TABLE Classified_Under (
-  Title VARCHAR(50),
-  Year INT,
-  Name VARCHAR(50),
-  PRIMARY KEY (Title, Year, Name),
-  FOREIGN KEY (Title, Year) REFERENCES Course(Title, Year),
-  FOREIGN KEY (Name) REFERENCES Subject_Area(Name)
-);
-
+-- Classified_Under
 INSERT INTO Classified_Under VALUES
 ('Quantum Mechanics', 2022, 'Quantum Physics'),
 ('Organic Chemistry', 2022, 'Organic Chemistry'),
@@ -86,13 +189,7 @@ INSERT INTO Classified_Under VALUES
 ('World History', 2022, 'Ancient Civilizations'),
 ('Logic', 2022, 'Formal Logic');
 
--- Instructor Table
-CREATE TABLE Instructor (
-  DOB DATE,
-  Name VARCHAR(50),
-  PRIMARY KEY (DOB, Name)
-);
-
+-- Instructor
 INSERT INTO Instructor VALUES
 ('1975-03-15', 'Mohan Gupta'),
 ('1980-04-26', 'Priya Sharma'),
@@ -107,38 +204,7 @@ INSERT INTO Instructor VALUES
 ('1977-02-01', 'Suresh Chavan'),
 ('1981-12-20', 'Kavita Rao');
 
--- Taught_By Table
-CREATE TABLE Taught_By (
-  Name VARCHAR(50),
-  DOB DATE,
-  Title VARCHAR(50),
-  Year INT,
-  PRIMARY KEY (Name, DOB, Title, Year),
-  FOREIGN KEY (DOB, Name) REFERENCES Instructor(DOB, Name),
-  FOREIGN KEY (Title, Year) REFERENCES Course(Title, Year)
-);
-
-INSERT INTO Taught_By VALUES
-('Mohan Gupta', '1975-03-15', 'Quantum Mechanics', 2022),
-('Priya Sharma', '1980-04-26', 'Organic Chemistry', 2022),
-('Rahul Bose', '1983-07-11', 'Calculus I', 2022),
-('Anjali Sinha', '1978-12-03', 'Cell Biology', 2022),
-('Nitin Saxena', '1985-09-19', 'Data Structures', 2022),
-('Seema Nair', '1972-08-02', 'Thermodynamics', 2022),
-('Aashish Roy', '1986-06-17', 'Circuits', 2022),
-('Poonam Verma', '1974-10-28', 'Structural Analysis', 2022),
-('Omprakash Mishra', '1979-11-12', 'Microeconomics', 2022),
-('Sneha Sen', '1982-05-06', 'Social Psychology', 2022),
-('Suresh Chavan', '1977-02-01', 'World History', 2022),
-('Kavita Rao', '1981-12-20', 'Logic', 2022);
-
--- Student Table
-CREATE TABLE Student (
-  Name VARCHAR(50),
-  DOB DATE,
-  PRIMARY KEY (Name, DOB)
-);
-
+-- Student
 INSERT INTO Student VALUES
 ('Ankit Jain', '2002-07-21'),
 ('Sneha Roy', '2001-09-30'),
@@ -153,19 +219,22 @@ INSERT INTO Student VALUES
 ('Manav Joshi', '2001-06-11'),
 ('Isha Malhotra', '2002-09-10');
 
+-- Taught_By
+INSERT INTO Taught_By VALUES
+('Mohan Gupta', '1975-03-15', 'Quantum Mechanics', 2022),
+('Priya Sharma', '1980-04-26', 'Organic Chemistry', 2022),
+('Rahul Bose', '1983-07-11', 'Calculus I', 2022),
+('Anjali Sinha', '1978-12-03', 'Cell Biology', 2022),
+('Nitin Saxena', '1985-09-19', 'Data Structures', 2022),
+('Seema Nair', '1972-08-02', 'Thermodynamics', 2022),
+('Aashish Roy', '1986-06-17', 'Circuits', 2022),
+('Poonam Verma', '1974-10-28', 'Structural Analysis', 2022),
+('Omprakash Mishra', '1979-11-12', 'Microeconomics', 2022),
+('Sneha Sen', '1982-05-06', 'Social Psychology', 2022),
+('Suresh Chavan', '1977-02-01', 'World History', 2022),
+('Kavita Rao', '1981-12-20', 'Logic', 2022);
 
--- Enrolled_In Table
-CREATE TABLE Enrolled_In (
-  Name VARCHAR(50),
-  DOB DATE,
-  Title VARCHAR(50),
-  Year INT,
-  Grade CHAR(2),
-  PRIMARY KEY (Name, DOB, Title, Year),
-  FOREIGN KEY (Name, DOB) REFERENCES Student(Name, DOB),
-  FOREIGN KEY (Title, Year) REFERENCES Course(Title, Year)
-);
-
+-- Enrolled_In
 INSERT INTO Enrolled_In VALUES
 ('Ankit Jain', '2002-07-21', 'Quantum Mechanics', 2022, 'A'),
 ('Sneha Roy', '2001-09-30', 'Organic Chemistry', 2022, 'A'),
@@ -180,17 +249,7 @@ INSERT INTO Enrolled_In VALUES
 ('Manav Joshi', '2001-06-11', 'World History', 2022, 'B'),
 ('Isha Malhotra', '2002-09-10', 'Logic', 2022, 'A');
 
--- Final_Project_Student Table
-CREATE TABLE Final_Project (
-  PId VARCHAR(10) PRIMARY KEY,
-  Name VARCHAR(50),
-  SName VARCHAR(50) NOT NULL,
-  DOB DATE NOT NULL,
-  Title VARCHAR(50) NOT NULL,
-  Year INT NOT NULL,
-  FOREIGN KEY (SName,DOB,Title, Year) REFERENCES Enrolled_In(Name,DOB,Title, Year)
-);
-
+-- Final_Project
 INSERT INTO Final_Project VALUES
 ('FP001', 'Quantum Simulation', 'Ankit Jain', '2002-07-21', 'Quantum Mechanics', 2022),
 ('FP002', 'Organic Synthesis Lab', 'Sneha Roy', '2001-09-30', 'Organic Chemistry', 2022),
