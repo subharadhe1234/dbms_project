@@ -375,7 +375,7 @@ def list_reports(db):
             {"id": "course-enrollment", "title": "Course-wise Enrollment Statistics"},
             {"id": "students-no-course", "title": "Students Not Enrolled in Any Course"},
             {"id": "dept-max-courses", "title": "Department Offering Maximum Courses"},
-            {"id": "students-multi-dept", "title": "Students Enrolled Across Departments"},
+            { "id": "course-final-projects", "title": "Course-wise Final Project Count" }
         ]
 
     else:
@@ -511,13 +511,16 @@ def get_report(db, report_id):
                 title = "Course-wise Enrollment Statistics"
                 query = """
                 SELECT
-                  c.Title AS course_title,
-                  COUNT(e.Name) AS enrolled_students
+                c.Title AS course_title,
+                c.Year AS course_year,
+                COUNT(e.Name) AS enrolled_students
                 FROM Course c
                 LEFT JOIN Enrolled_In e
-                  ON c.Title = e.Title
-                 AND c.Year = e.Year
-                GROUP BY c.Title
+                ON c.Title = e.Title
+                AND c.Year = e.Year
+                GROUP BY c.Title, c.Year
+                ORDER BY c.Title, c.Year;
+
                 """
 
             elif report_id == "students-no-course":
@@ -553,19 +556,19 @@ def get_report(db, report_id):
                 )
                 """
 
-            elif report_id == "students-multi-dept":
-                title = "Students Enrolled Across Departments"
+            elif report_id == "course-final-projects":
+                title = "Course-wise Final Project Count"
                 query = """
                 SELECT
-                  e.Name,
-                  e.DOB,
-                  COUNT(DISTINCT c.Department_Name) AS dept_count
-                FROM Enrolled_In e
-                JOIN Course c
-                  ON e.Title = c.Title
-                 AND e.Year = c.Year
-                GROUP BY e.Name, e.DOB
-                HAVING COUNT(DISTINCT c.Department_Name) > 1
+                c.Title AS course_title,
+                c.Year AS course_year,
+                COUNT(fp.PId) AS total_final_projects
+                FROM Course c
+                LEFT JOIN Final_Project fp
+                ON c.Title = fp.Title
+                AND c.Year = fp.Year
+                GROUP BY c.Title, c.Year
+                ORDER BY c.Title, c.Year
                 """
 
             else:
