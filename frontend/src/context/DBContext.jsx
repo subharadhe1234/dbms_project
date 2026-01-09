@@ -3,14 +3,6 @@ import { createContext, useContext, useEffect, useState } from "react";
 const DBContext = createContext();
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-/* =====================================================
-   HELPERS
-   ===================================================== */
-
-/**
- * Convert empty strings to null
- * UI ""  -> backend NULL
- */
 const normalizeRow = (row) => {
   const clean = {};
   Object.keys(row).forEach((k) => {
@@ -20,9 +12,6 @@ const normalizeRow = (row) => {
   return clean;
 };
 
-/**
- * Handle backend errors and expose them to UI
- */
 const parseError = async (res) => {
   let message = "Database operation failed";
 
@@ -36,22 +25,15 @@ const parseError = async (res) => {
   return message;
 };
 
-/* =====================================================
-   PROVIDER
-   ===================================================== */
-
 export function DBProvider({ children }) {
-  /* -------------------------------
-     GLOBAL STATE
-     ------------------------------- */
   const [database, setDatabase] = useState("university");
   const [tables, setTables] = useState([]);
-  const [schema, setSchema] = useState({});
-  const [data, setData] = useState({});
+  const [schema, setSchema] = useState([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  /* Error state (visualized in UI) */
   const [error, setError] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [reportData, setReportData] = useState({});
 
   const clearError = () => setError(null);
 
@@ -71,6 +53,21 @@ export function DBProvider({ children }) {
   };
 
   /* =====================================================
+   FETCH: REPORT LIST (PER DATABASE)
+   ===================================================== */
+  const fetchReports = async (db = database) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/${db}/reports`);
+      if (!res.ok) throw new Error(await parseError(res));
+
+      const json = await res.json();
+      setReports(json.reports || []);
+    } catch (err) {
+      setError(err.error || err.message || "Failed to fetch reports");
+    }
+  };
+
+  /* =====================================================
      FETCH: TABLE SCHEMA
      ===================================================== */
   const fetchSchema = async (table) => {
@@ -81,7 +78,7 @@ export function DBProvider({ children }) {
       if (!res.ok) throw new Error(await parseError(res));
 
       const json = await res.json();
-      setSchema((prev) => ({ ...prev, [table]: json }));
+      setSchema(json);
     } catch (err) {
       setError(err.message);
     }
@@ -99,7 +96,32 @@ export function DBProvider({ children }) {
       if (!res.ok) throw new Error(await parseError(res));
 
       const json = await res.json();
-      setData((prev) => ({ ...prev, [table]: json }));
+      setData(json);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* =====================================================
+   FETCH: REPORT DATA
+   ===================================================== */
+  /* =====================================================
+   FETCH: REPORT DATA
+   ===================================================== */
+  const fetchReportData = async (reportId) => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/${database}/reports/${reportId}`
+      );
+
+      if (!res.ok) throw new Error(await parseError(res));
+
+      const json = await res.json();
+
+      setReportData(json);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -135,7 +157,6 @@ export function DBProvider({ children }) {
   const updateRow = async (table, data, where) => {
     try {
       if (!data || !where) {
-        console.log(data, where);
         return;
       }
 
@@ -190,7 +211,10 @@ export function DBProvider({ children }) {
       setTables([]);
       setSchema({});
       setData({});
+      setReportData({});
+      setReports([]);
       await fetchTables(db);
+      await fetchReports(db);
     } catch (err) {
       setError(err.message);
     }
@@ -201,6 +225,7 @@ export function DBProvider({ children }) {
      ===================================================== */
   useEffect(() => {
     fetchTables(database);
+    fetchReports(database);
   }, []);
 
   /* =====================================================
@@ -216,6 +241,8 @@ export function DBProvider({ children }) {
         data,
         loading,
         error,
+        reports,
+        reportData,
 
         /* actions */
         clearError,
@@ -225,6 +252,8 @@ export function DBProvider({ children }) {
         insertRow,
         updateRow,
         deleteRow,
+        fetchReports,
+        fetchReportData,
       }}
     >
       {children}

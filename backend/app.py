@@ -31,6 +31,7 @@ ALLOWED_TABLES = {
         "research_paper",
         "researcher",
         "uses",
+        "office",
     ],
 }
 
@@ -47,7 +48,7 @@ def home():
 
 
 # ===============================
-# 1️⃣ SHOW ALL TABLES
+#  SHOW ALL TABLES
 # ===============================
 @app.route("/api/<db>/tables", methods=["GET"])
 def show_tables(db):
@@ -64,7 +65,7 @@ def show_tables(db):
 
 
 # ===============================
-# 2️⃣ TABLE SCHEMA
+#  TABLE SCHEMA
 # ===============================
 @app.route("/api/<db>/tables/<table>/schema", methods=["GET"])
 def table_schema(db, table):
@@ -85,7 +86,7 @@ def table_schema(db, table):
 
 
 # ===============================
-# 3️⃣ VIEW TABLE DATA
+# VIEW TABLE DATA
 # ===============================
 @app.route("/api/<db>/tables/<table>/data", methods=["GET"])
 def table_data(db, table):
@@ -106,7 +107,7 @@ def table_data(db, table):
 
 
 # ===============================
-# 4️⃣ INSERT DATA
+# INSERT DATA
 # ===============================
 @app.route("/api/<db>/tables/<table>/insert", methods=["POST"])
 def insert_data(db, table):
@@ -142,11 +143,13 @@ def insert_data(db, table):
     except IntegrityError as e:
         msg = str(e).lower()
 
-        # 🔑 DUPLICATE PRIMARY KEY (Composite or Single)
+        
+
         if "duplicate" in msg:
             return jsonify({
-                "error": "Duplicate primary key value. This row already exists."
+                "error": "Duplicate  key value. Update not allowed."
             }), 409
+
 
         # 🔗 FOREIGN KEY VIOLATION
         if "foreign key constraint fails" in msg:
@@ -171,7 +174,7 @@ def insert_data(db, table):
 
 
 # ===============================
-# 5️⃣ UPDATE DATA
+# UPDATE DATA
 # ===============================
 @app.route("/api/<db>/tables/<table>/update", methods=["PUT"])
 def update_data(db, table):
@@ -233,7 +236,7 @@ def update_data(db, table):
         # 🔑 DUPLICATE PRIMARY KEY (composite or single)
         if "duplicate" in msg:
             return jsonify({
-                "error": "Duplicate primary key value. Update not allowed."
+                "error": "Duplicate  key value. Update not allowed."
             }), 409
 
         # ❓ OTHER INTEGRITY ISSUE
@@ -249,7 +252,7 @@ def update_data(db, table):
 
 
 # ===============================
-# 6️⃣ DELETE DATA
+#  DELETE DATA
 # ===============================
 @app.route("/api/<db>/tables/<table>/delete", methods=["DELETE"])
 def delete_data(db, table):
@@ -320,7 +323,7 @@ def delete_data(db, table):
 
 
 # ===============================
-# 7️⃣ CUSTOM SQL (LIMITED)
+#  CUSTOM SQL 
 # ===============================
 @app.route("/api/<db>/sql", methods=["POST"])
 def run_sql(db):
@@ -348,29 +351,240 @@ def run_sql(db):
 
 
 # ===============================
-# 8️⃣ REPORT (JOIN QUERY)
+# REPORT 
 # ===============================
-@app.route("/api/<db>/reports/student-courses", methods=["GET"])
-def student_courses(db):
-    if db.lower() not in ALLOWED_DATABASES:
+@app.route("/api/<db>/reports", methods=["GET"])
+def list_reports(db):
+    db = db.lower()
+
+    if db not in ALLOWED_DATABASES:
         return jsonify({"error": "Invalid database"}), 400
 
-    conn = get_connection(db)
-    cur = conn.cursor(dictionary=True)
-    cur.execute("""
-        SELECT s.Name AS Student,
-               c.Title AS Course,
-               e.Grade,
-               ad.Name AS Department
-        FROM Student s
-        JOIN Enrolled_In e ON s.Name = e.Name AND s.DOB = e.DOB
-        JOIN Course c ON e.Title = c.Title AND e.Year = c.Year
-        JOIN Academic_Department ad ON c.Department_Name = ad.Name
-    """)
-    data = cur.fetchall()
-    conn.close()
+    if db == "research":
+        reports = [
+            {"id": "journal-summary", "title": "Journal-wise Paper & Author Statistics"},
+            {"id": "editor-not-author", "title": "Editors Who Did Not Author Papers"},
+            {"id": "inactive-researchers", "title": "Researchers Using Equipment but No Papers"},
+            {"id": "max-paper-journals", "title": "Journals with Maximum Papers"},
+            {"id": "shared-office-different-equipment", "title": "Same Office, Different Equipment Usage"},
+        ]
 
-    return jsonify(data)
+    elif db == "university":
+        reports = [
+            {"id": "dept-course-count", "title": "Department-wise Course Count"},
+            {"id": "course-enrollment", "title": "Course-wise Enrollment Statistics"},
+            {"id": "students-no-course", "title": "Students Not Enrolled in Any Course"},
+            {"id": "dept-max-courses", "title": "Department Offering Maximum Courses"},
+            {"id": "students-multi-dept", "title": "Students Enrolled Across Departments"},
+        ]
+
+    else:
+        reports = []
+
+    return jsonify({"reports": reports}), 200
+
+@app.route("/api/<db>/reports/<report_id>", methods=["GET"])
+def get_report(db, report_id):
+    db = db.lower()
+
+    if db not in ALLOWED_DATABASES:
+        return jsonify({"error": "Invalid database"}), 400
+
+    try:
+        conn = get_connection(db)
+        cur = conn.cursor(dictionary=True)
+
+        # ===================== RESEARCH REPORTS =====================
+        if db == "research":
+
+            if report_id == "journal-summary":
+                title = "Journal-wise Paper & Author Statistics"
+                query = """
+                SELECT
+                  j.Title AS journal_title,
+                  j.Volume_Id,
+                  COUNT(DISTINCT p.Paper_Id) AS total_papers,
+                  COUNT(DISTINCT a.Employee_Id) AS total_authors,
+                  r.Name AS editor_in_chief
+                FROM Journal_Issue j
+                JOIN Researcher r
+                  ON j.Editor_In_Chief = r.Employee_Id
+                LEFT JOIN Research_Paper p
+                  ON p.Volume_Id = j.Volume_Id
+                 AND p.Journal_Title = j.Title
+                LEFT JOIN Authors a
+                  ON a.Paper_Id = p.Paper_Id
+                GROUP BY j.Volume_Id, j.Title, r.Name
+                """
+
+            elif report_id == "editor-not-author":
+                title = "Editors Who Did Not Author Papers"
+                query = """
+                SELECT
+                  j.Volume_Id,
+                  j.Title AS journal_title,
+                  r.Name AS editor_name
+                FROM Journal_Issue j
+                JOIN Researcher r
+                  ON j.Editor_In_Chief = r.Employee_Id
+                WHERE NOT EXISTS (
+                  SELECT 1
+                  FROM Research_Paper p
+                  JOIN Authors a ON a.Paper_Id = p.Paper_Id
+                  WHERE p.Volume_Id = j.Volume_Id
+                    AND p.Journal_Title = j.Title
+                    AND a.Employee_Id = j.Editor_In_Chief
+                )
+                """
+
+            elif report_id == "inactive-researchers":
+                title = "Researchers Using Equipment but No Papers"
+                query = """
+                SELECT DISTINCT
+                  r.Employee_Id,
+                  r.Name
+                FROM Researcher r
+                JOIN Uses u ON r.Employee_Id = u.Employee_Id
+                LEFT JOIN Authors a ON r.Employee_Id = a.Employee_Id
+                WHERE a.Employee_Id IS NULL
+                """
+
+            elif report_id == "max-paper-journals":
+                title = "Journals with Maximum Papers"
+                query = """
+                SELECT
+                  Volume_Id,
+                  Journal_Title,
+                  COUNT(*) AS paper_count
+                FROM Research_Paper
+                GROUP BY Volume_Id, Journal_Title
+                HAVING COUNT(*) = (
+                  SELECT MAX(cnt)
+                  FROM (
+                    SELECT COUNT(*) AS cnt
+                    FROM Research_Paper
+                    GROUP BY Volume_Id, Journal_Title
+                  ) x
+                )
+                """
+
+            elif report_id == "shared-office-different-equipment":
+                title = "Same Office, Different Equipment Usage"
+                query = """
+                SELECT DISTINCT
+                  r1.Employee_Id AS researcher_1,
+                  r2.Employee_Id AS researcher_2,
+                  r1.Office_Address
+                FROM Researcher r1
+                JOIN Researcher r2
+                  ON r1.Office_Address = r2.Office_Address
+                 AND r1.Employee_Id < r2.Employee_Id
+                WHERE NOT EXISTS (
+                  SELECT 1
+                  FROM Uses u1
+                  JOIN Uses u2
+                    ON u1.Equipment_Name = u2.Equipment_Name
+                   AND u1.Calibration_Standard = u2.Calibration_Standard
+                  WHERE u1.Employee_Id = r1.Employee_Id
+                    AND u2.Employee_Id = r2.Employee_Id
+                )
+                """
+            else:
+                return jsonify({"error": "Invalid report id"}), 404
+
+        # ===================== UNIVERSITY REPORTS =====================
+        elif db == "university":
+
+            if report_id == "dept-course-count":
+                title = "Department-wise Course Count"
+                query = """
+                SELECT
+                  d.Name AS department_name,
+                  COUNT(c.Title) AS total_courses
+                FROM Academic_Department d
+                LEFT JOIN Course c
+                  ON d.Name = c.Department_Name
+                GROUP BY d.Name
+                """
+
+            elif report_id == "course-enrollment":
+                title = "Course-wise Enrollment Statistics"
+                query = """
+                SELECT
+                  c.Title AS course_title,
+                  COUNT(e.Name) AS enrolled_students
+                FROM Course c
+                LEFT JOIN Enrolled_In e
+                  ON c.Title = e.Title
+                 AND c.Year = e.Year
+                GROUP BY c.Title
+                """
+
+            elif report_id == "students-no-course":
+                title = "Students Not Enrolled in Any Course"
+                query = """
+                SELECT
+                  s.Name,
+                  s.DOB
+                FROM Student s
+                WHERE NOT EXISTS (
+                  SELECT 1
+                  FROM Enrolled_In e
+                  WHERE e.Name = s.Name
+                    AND e.DOB = s.DOB
+                )
+                """
+
+            elif report_id == "dept-max-courses":
+                title = "Department Offering Maximum Courses"
+                query = """
+                SELECT
+                  Department_Name,
+                  COUNT(*) AS total_courses
+                FROM Course
+                GROUP BY Department_Name
+                HAVING COUNT(*) = (
+                  SELECT MAX(cnt)
+                  FROM (
+                    SELECT COUNT(*) AS cnt
+                    FROM Course
+                    GROUP BY Department_Name
+                  ) x
+                )
+                """
+
+            elif report_id == "students-multi-dept":
+                title = "Students Enrolled Across Departments"
+                query = """
+                SELECT
+                  e.Name,
+                  e.DOB,
+                  COUNT(DISTINCT c.Department_Name) AS dept_count
+                FROM Enrolled_In e
+                JOIN Course c
+                  ON e.Title = c.Title
+                 AND e.Year = c.Year
+                GROUP BY e.Name, e.DOB
+                HAVING COUNT(DISTINCT c.Department_Name) > 1
+                """
+
+            else:
+                return jsonify({"error": "Invalid report id"}), 404
+
+        cur.execute(query)
+        rows = cur.fetchall()
+
+        return jsonify({"title": title, "data": rows}), 200
+
+    except Exception as e:
+        return jsonify({
+            "error": "Failed to generate report",
+            "details": str(e)
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ===============================

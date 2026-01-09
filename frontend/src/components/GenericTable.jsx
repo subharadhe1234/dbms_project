@@ -13,29 +13,24 @@ export default function GenericTable({ table }) {
     deleteRow,
   } = useDB();
 
-  const rows = data[table] || [];
-  const columns = schema[table] || [];
-
   /* ===============================
      PRIMARY KEY DETECTION (COMPOSITE SAFE)
      =============================== */
-  const pkColumns = columns.filter((c) => c.Key === "PRI").map((c) => c.Field);
+  const pkColumns = schema.filter((c) => c.Key === "PRI").map((c) => c.Field);
 
-  /* Stable composite row key */
+  /* Stable composite row identity (based on ORIGINAL PK) */
   const makeRowKey = (row) =>
     pkColumns.length
       ? pkColumns.map((k) => row[k]).join("::")
       : JSON.stringify(row);
 
   /* ===============================
-     DRAFT STATE
+     STATE
      =============================== */
   const [draftRows, setDraftRows] = useState({});
+  const [originalRows, setOriginalRows] = useState({});
   const [dirtyRows, setDirtyRows] = useState(new Set());
 
-  /* ===============================
-     NEW ROW STATE
-     =============================== */
   const [newRow, setNewRow] = useState({});
   const [newRowDirty, setNewRowDirty] = useState(false);
 
@@ -43,28 +38,33 @@ export default function GenericTable({ table }) {
      LOAD SCHEMA + DATA
      =============================== */
   useEffect(() => {
-    if (!table) return;
     fetchSchema(table);
     fetchTableData(table);
+    // console.log(schema);
+    // console.log(data);
   }, [table]);
 
   /* ===============================
-     SYNC DATA → DRAFT (COMPOSITE SAFE)
+     SYNC DATA → DRAFT + ORIGINAL SNAPSHOT
      =============================== */
   useEffect(() => {
-    const map = {};
-    rows.forEach((r) => {
+    const draftMap = {};
+    const originalMap = {};
+
+    data.forEach((r) => {
       const key = makeRowKey(r);
-      map[key] = { ...r };
+      draftMap[key] = { ...r };
+      originalMap[key] = { ...r };
     });
-    setDraftRows(map);
+
+    setDraftRows(draftMap);
+    setOriginalRows(originalMap);
     setDirtyRows(new Set());
-  }, [rows, columns]);
+  }, [data, schema]);
 
   /* ===============================
      HANDLERS
      =============================== */
-
   const onCellChange = (rowKey, column, value) => {
     setDraftRows((prev) => ({
       ...prev,
@@ -74,20 +74,20 @@ export default function GenericTable({ table }) {
   };
 
   /* ===============================
-     UPDATE ROW (COMPOSITE SAFE)
+     UPDATE ROW
+     - WHERE → OLD PK
+     - SET   → NEW VALUES (including PK)
      =============================== */
   const saveRow = (rowKey) => {
-    const fullRow = draftRows[rowKey];
-    const rowData = { ...fullRow };
-    const where = {};
+    const updatedRow = draftRows[rowKey];
+    const originalRow = originalRows[rowKey];
 
-    // Build WHERE from all PK columns
+    const where = {};
     pkColumns.forEach((k) => {
-      where[k] = fullRow[k];
-      delete rowData[k]; // never update PK columns
+      where[k] = originalRow[k];
     });
 
-    updateRow(table, rowData, where);
+    updateRow(table, updatedRow, where);
 
     setDirtyRows((prev) => {
       const next = new Set(prev);
@@ -116,12 +116,11 @@ export default function GenericTable({ table }) {
   return (
     <div className="overflow-auto">
       <table className="min-w-max border-collapse text-[12px] text-neutral-200">
-        {/* ================= HEADER ================= */}
         <thead className="sticky top-0 bg-neutral-900 z-10">
           <tr>
             <th className="w-8 border border-neutral-700" />
 
-            {columns.map((col) => (
+            {schema.map((col) => (
               <th
                 key={col.Field}
                 className="border border-neutral-700 px-2 py-1 text-left"
@@ -142,7 +141,7 @@ export default function GenericTable({ table }) {
         {/* ================= BODY ================= */}
         <tbody>
           {/* EXISTING ROWS */}
-          {rows.map((row) => {
+          {data.map((row) => {
             const rowKey = makeRowKey(row);
             const draft = draftRows[rowKey] || row;
             const isDirty = dirtyRows.has(rowKey);
@@ -169,7 +168,7 @@ export default function GenericTable({ table }) {
                 </td>
 
                 {/* CELLS */}
-                {columns.map((col) => {
+                {schema.map((col) => {
                   const field = col.Field;
                   return (
                     <td
@@ -214,7 +213,7 @@ export default function GenericTable({ table }) {
               <Plus size={12} />
             </td>
 
-            {columns.map((col) => (
+            {schema.map((col) => (
               <td
                 key={col.Field}
                 className="border border-neutral-800 px-2 py-1"
