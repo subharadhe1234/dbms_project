@@ -1,0 +1,2 @@
+ALTER TABLE "user" ADD COLUMN "department_id" integer;--> statement-breakpoint
+ALTER TABLE "user" ADD CONSTRAINT "user_department_id_academic_department_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."academic_department"("id") ON DELETE set null ON UPDATE no action;
