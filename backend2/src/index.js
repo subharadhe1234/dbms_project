@@ -19,6 +19,7 @@ import cors from "cors";
 import session from "express-session";
 import authRouter from "./routes/authRoutes.js";
 import reportRouter from "./routes/reportRoutes.js";
+import adminRouter from "./routes/adminRoutes.js";
 import departmentRouter from "./routes/departmentRoutes.js";
 
 const app = express();
@@ -48,8 +49,9 @@ app.use(
 );
 
 app.use("/api/auth", authRouter);
-app.use("/api/departments", departmentRouter);
-app.use("/api/report", reportRouter);
+app.use("/api/admin", adminRouter);
+app.use("/api/reports", reportRouter);
+app.use("/api/department", departmentRouter);
 
 app.get("/", (req, res) => {
   res.json({

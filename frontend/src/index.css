@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Change selected date color */
+.custom-calendar .react-calendar__tile--active {
+  background: black !important;
+  color: white !important;
+}
+
+/* Hover effect */
+.custom-calendar .react-calendar__tile--active:enabled:hover,
+.custom-calendar .react-calendar__tile--active:enabled:focus {
+  background: #222 !important;
+}
+
+/* Optional: today's date */
+.custom-calendar .react-calendar__tile--now {
+  background: #e5e5e5 !important;
+  color: black !important;
+}
 /* .input {
   @apply bg-gray-900 border border-gray-700 px-2 py-1 rounded;
 }

@@ -3,26 +3,24 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Pencil, Layers, MapPin } from "lucide-react";
 
 import Navbar from "../components/Navbar";
-import AddDepartmentModal from "../components/department/AddDepartmentModal";
-import EditDepartmentModal from "../components/department/EditDepartmentModal";
-import SubjectAreaModal from "../components/department/SubjectAreaModal";
+import Footer from "../components/Footer";
+import AddDepartmentModal from "../components/admin/AddDepartmentModal";
+import EditDepartmentModal from "../components/admin/EditDepartmentModal";
+import SubjectAreaModal from "../components/admin/SubjectAreaModal";
 
-import { useDepartment } from "../context/DepartmentContext";
+import { useAdmin } from "../context/AdminContext";
 
-/* =========================
-   CONSTANTS
-========================= */
 const EMPTY_FORM = {
   name: "",
   location: "",
   managerEmail: "",
 };
 
-const DepartmentSelector = () => {
+const AdminPage = () => {
   const navigate = useNavigate();
 
   const { departments, createDepartment, updateDepartment, loading } =
-    useDepartment();
+    useAdmin();
 
   const [addOpen, setAddOpen] = useState(false);
   const [editDept, setEditDept] = useState(null);
@@ -85,10 +83,10 @@ const DepartmentSelector = () => {
   };
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col ">
       <Navbar active="home" />
 
-      <div className="pt-28 px-8 max-w-6xl mx-auto">
+      <div className="flex-1 pt-28 px-8 max-w-6xl mx-auto w-full">
         {/* ================= HEADER ================= */}
         <div className="flex items-center justify-between mb-12">
           <h1 className="text-3xl font-semibold tracking-tight">Departments</h1>
@@ -198,8 +196,9 @@ const DepartmentSelector = () => {
         open={subjectOpen}
         onClose={() => setSubjectOpen(false)}
       />
-    </>
+      <Footer />
+    </div>
   );
 };
 
-export default DepartmentSelector;
+export default AdminPage;

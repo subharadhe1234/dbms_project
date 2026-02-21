@@ -1,28 +1,36 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-export default function ProtectedRoute({ allowedRoles }) {
-  const { isLoggedIn, role, loading } = useAuth();
+export default function ProtectedRoute({
+  allowedRoles,
+  checkDepartment = false,
+}) {
+  const { isLoggedIn, user, loading } = useAuth();
+  const { departmentId } = useParams();
 
-  // Wait for auth to resolve
   if (loading) {
     return <div className="p-6 text-center">Loading...</div>;
   }
 
-  //Not logged in → login
   if (!isLoggedIn) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  // Logged in but role not allowed
   if (
     allowedRoles &&
     Array.isArray(allowedRoles) &&
-    !allowedRoles.includes(role)
+    !allowedRoles.includes(user.role)
   ) {
-    return <Navigate to="/" replace />; // or /unauthorized
+    return <Navigate to="/" replace />;
   }
 
-  // Access granted
+  if (
+    checkDepartment &&
+    user.role !== "admin" &&
+    String(user.departmentId) !== departmentId
+  ) {
+    return <Navigate to="/" replace />;
+  }
+
   return <Outlet />;
 }

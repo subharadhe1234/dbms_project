@@ -5,7 +5,6 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
-    // Load from localStorage on first render
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   });
@@ -20,9 +19,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user]);
 
-  /* =========================
-     LOGIN
-  ========================= */
+  //login
   const login = async (email, password) => {
     try {
       setLoading(true);
@@ -37,10 +34,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
-  /* =========================
-     LOGOUT
-  ========================= */
+  // logout
   const logout = async () => {
     try {
       setLoading(true);
@@ -54,9 +48,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  /* =========================
-     CONTEXT VALUE
-  ========================= */
   return (
     <AuthContext.Provider
       value={{
@@ -73,9 +64,6 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-/* =========================
-   HELPERS
-========================= */
 const normalizeUser = (user) => ({
   id: user.id,
   email: user.email,
@@ -83,7 +71,4 @@ const normalizeUser = (user) => ({
   role: user.departmentId === null ? "admin" : "manager",
 });
 
-/* =========================
-   HOOK
-========================= */
 export const useAuth = () => useContext(AuthContext);

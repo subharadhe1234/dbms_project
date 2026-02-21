@@ -72,10 +72,9 @@ const Navbar = ({ active = "" }) => {
           {/* LOGO */}
           <div
             onClick={() => navigate("/")}
-            className="flex items-center gap-3 cursor-pointer"
+            className="flex items-center cursor-pointer"
           >
-            <img src={logo} alt="Logo" className="h-10 w-auto" />
-            <span className="text-xl font-semibold">Tathyakosh</span>
+            <img src={logo} alt="Logo" className="h-24 w-auto" />
           </div>
 
           {/* DESKTOP NAV (ONLY IF LOGGED IN) */}
@@ -97,7 +96,7 @@ const Navbar = ({ active = "" }) => {
           {/* DESKTOP RIGHT */}
           <div className="hidden md:flex items-center gap-6 ml-auto">
             <a
-              href="https://www.caluniv.ac.in"
+              href="#"
               target="_blank"
               rel="noopener noreferrer"
               className="px-5 py-2 border border-black/30 rounded-md
@@ -206,7 +205,7 @@ const Navbar = ({ active = "" }) => {
 
               {/* KNOW MORE */}
               <a
-                href="https://www.caluniv.ac.in"
+                href="#"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 text-lg font-medium text-black/70 hover:text-black"

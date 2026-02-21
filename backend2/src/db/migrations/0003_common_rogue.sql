@@ -1,0 +1,1 @@
+ALTER TABLE "enrolled_in" ALTER COLUMN "grade" DROP NOT NULL;

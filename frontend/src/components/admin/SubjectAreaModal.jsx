@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Pencil, Check, X, Plus, Loader2, BookOpen } from "lucide-react";
-import { useDepartment } from "../../context/DepartmentContext";
+import { useAdmin } from "../../context/AdminContext";
 
 const SubjectAreaModal = ({ open, onClose }) => {
   const { subjectAreas, addSubjectArea, updateSubjectArea, loading } =
-    useDepartment();
+    useAdmin();
 
   const [newSubject, setNewSubject] = useState("");
   const [editing, setEditing] = useState(null);

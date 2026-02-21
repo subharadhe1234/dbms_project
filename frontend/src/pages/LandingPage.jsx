@@ -194,7 +194,7 @@ const LandingPage = () => {
               )}
 
               <a
-                href="https://www.caluniv.ac.in"
+                href="#"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="border border-white text-white px-8 py-3 rounded-3xl text-sm font-medium

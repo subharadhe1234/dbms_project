@@ -150,7 +150,7 @@ export const enrolledIn = pgTable(
       .notNull()
       .references(() => student.id, { onDelete: "restrict" }),
 
-    grade: varchar("grade", { length: 255 }).notNull(),
+    grade: varchar("grade", { length: 255 }),
   },
   (table) => ({
     enrollmentUnique: unique("enrolled_in_unique").on(
