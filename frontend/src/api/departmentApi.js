@@ -72,6 +72,9 @@ export const deleteInstructor = (courseId, instructorId) =>
 export const getFinalProjectsByCourse = (courseId) =>
   api.get(`/department/courses/${courseId}/final-projects`);
 
+export const getFinalProjectByEnrollmentId = (enrollmentId) =>
+  api.get(`/department/enrollments/${enrollmentId}/final-project`);
+
 export const addFinalProject = (enrollmentId, data) =>
   api.post(`/department/enrollments/${enrollmentId}/final-project`, data);
 

@@ -362,6 +362,22 @@ export const DepartmentProvider = ({ children }) => {
     }
   };
 
+  const fetchFinalProjectByEnrollmentId = async (enrollmentId) => {
+    try {
+      const res =
+        await departmentApi.getFinalProjectByEnrollmentId(enrollmentId);
+      return {
+        success: true,
+        data: res.data.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error?.response?.data?.message || "Failed to fetch final project",
+      };
+    }
+  };
   const addFinalProject = async (enrollmentId, data) => {
     try {
       await departmentApi.addFinalProject(enrollmentId, data);
@@ -455,6 +471,7 @@ export const DepartmentProvider = ({ children }) => {
     finalProjects,
     projectLoading,
     fetchFinalProjectsByCourse,
+    fetchFinalProjectByEnrollmentId,
     addFinalProject,
     updateFinalProject,
     deleteFinalProject,

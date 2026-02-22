@@ -246,26 +246,54 @@ export const getStudentByAadhaar = async (req, res) => {
         message: "Aadhaar number is required",
       });
     }
-
     if (!/^[0-9]{12}$/.test(aadhaar)) {
       return res.status(400).json({
         success: false,
         message: "Aadhaar must be exactly 12 digits",
       });
     }
+    if (isNaN(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course id",
+      });
+    }
 
-    const result = await db
+    let studentResult = await db
       .select()
       .from(student)
       .where(eq(student.aadhaarNo, aadhaar))
       .limit(1);
 
-    if (result.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
+    if (studentResult.length === 0) {
+      const instructorResult = await db
+        .select()
+        .from(instructor)
+        .where(eq(instructor.aadhaarNo, aadhaar))
+        .limit(1);
+
+      if (instructorResult.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No person found with this Aadhaar",
+        });
+      }
+
+      const instructorData = instructorResult[0];
+
+      const [newStudent] = await db
+        .insert(student)
+        .values({
+          name: instructorData.name,
+          dob: instructorData.dob,
+          aadhaarNo: instructorData.aadhaarNo,
+        })
+        .returning();
+
+      studentResult = [newStudent];
     }
+
+    const studentData = studentResult[0];
 
     const enrolled = await db
       .select()
@@ -273,9 +301,10 @@ export const getStudentByAadhaar = async (req, res) => {
       .where(
         and(
           eq(enrolledIn.courseId, courseId),
-          eq(enrolledIn.studentId, result[0].id),
+          eq(enrolledIn.studentId, studentData.id),
         ),
       );
+
     if (enrolled.length > 0) {
       return res.status(409).json({
         success: false,
@@ -285,7 +314,7 @@ export const getStudentByAadhaar = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: result[0],
+      data: studentData,
     });
   } catch (error) {
     console.error("Error searching student:", error);
@@ -457,6 +486,7 @@ export const getStudentsByCourse = async (req, res) => {
         aadhaarNo: student.aadhaarNo,
         dob: student.dob,
         grade: enrolledIn.grade,
+        enrollmentId: enrolledIn.id,
       })
       .from(enrolledIn)
       .innerJoin(student, eq(enrolledIn.studentId, student.id))
@@ -471,6 +501,7 @@ export const getStudentsByCourse = async (req, res) => {
           aadhaarNo: student.aadhaarNo,
           dob: student.dob,
           grade: enrolledIn.grade,
+          enrollmentId: enrolledIn.id,
         })
         .from(enrolledIn)
         .innerJoin(student, eq(enrolledIn.studentId, student.id))
@@ -513,6 +544,7 @@ export const searchStudentsInCourse = async (req, res) => {
         aadhaarNo: student.aadhaarNo,
         dob: student.dob,
         grade: enrolledIn.grade,
+        enrollmentId: enrolledIn.id,
       })
       .from(enrolledIn)
       .innerJoin(student, eq(enrolledIn.studentId, student.id))
@@ -550,14 +582,20 @@ export const updateStudentDetails = async (req, res) => {
     if (isNaN(studentId)) {
       return res.status(400).json({ message: "Invalid student id" });
     }
+
     const existingStudent = await db
       .select()
       .from(student)
-      .where(eq(student.id, studentId));
+      .where(eq(student.id, studentId))
+      .limit(1);
 
     if (existingStudent.length === 0) {
       return res.status(404).json({ message: "Student not found" });
     }
+
+    const currentStudent = existingStudent[0];
+
+    /* ================= DOB VALIDATION ================= */
 
     let dobDate;
     if (dob !== undefined) {
@@ -568,30 +606,76 @@ export const updateStudentDetails = async (req, res) => {
       }
 
       if (dobDate >= new Date()) {
-        return res
-          .status(400)
-          .json({ message: "Date of birth must be in the past" });
+        return res.status(400).json({
+          message: "Date of birth must be in the past",
+        });
       }
     }
 
-    const updateData = {};
+    /* ================= GLOBAL AADHAAR VALIDATION ================= */
 
+    if (aadhaarNo !== undefined) {
+      if (!/^[0-9]{12}$/.test(aadhaarNo)) {
+        return res.status(400).json({
+          message: "Aadhaar must be exactly 12 digits",
+        });
+      }
+
+      if (aadhaarNo !== currentStudent.aadhaarNo) {
+        // Check student table
+        const conflictStudent = await db
+          .select()
+          .from(student)
+          .where(eq(student.aadhaarNo, aadhaarNo));
+
+        if (conflictStudent.length > 0) {
+          return res.status(409).json({
+            message: "Aadhaar already exists in student table",
+          });
+        }
+
+        //  Check instructor table also
+        const conflictInstructor = await db
+          .select()
+          .from(instructor)
+          .where(eq(instructor.aadhaarNo, aadhaarNo));
+
+        if (conflictInstructor.length > 0) {
+          return res.status(409).json({
+            message:
+              "Aadhaar already exists in instructor table. Identity conflict.",
+          });
+        }
+      }
+    }
+
+    /* ================= UPDATE DATA ================= */
+
+    const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (dob !== undefined) updateData.dob = dobDate;
     if (aadhaarNo !== undefined) updateData.aadhaarNo = aadhaarNo;
 
     if (Object.keys(updateData).length > 0) {
       await db.update(student).set(updateData).where(eq(student.id, studentId));
-    }
 
-    if (grade !== undefined && courseId) {
+      /*ALSO SYNC INSTRUCTOR TABLE */
+
+      await db
+        .update(instructor)
+        .set(updateData)
+        .where(eq(instructor.aadhaarNo, currentStudent.aadhaarNo));
+    }
+    /* ================= UPDATE GRADE ================= */
+
+    if (grade !== undefined && !isNaN(courseId)) {
       await db
         .update(enrolledIn)
         .set({ grade })
         .where(
           and(
             eq(enrolledIn.studentId, studentId),
-            eq(enrolledIn.courseId, Number(courseId)),
+            eq(enrolledIn.courseId, courseId),
           ),
         );
     }
@@ -602,7 +686,7 @@ export const updateStudentDetails = async (req, res) => {
   } catch (error) {
     console.error(error);
 
-    if (error.cause.code === "23505") {
+    if (error?.cause?.code === "23505") {
       return res.status(409).json({
         message: "Aadhaar number already exists",
       });
@@ -676,27 +760,60 @@ export const getInstructorByAadhaar = async (req, res) => {
 
     if (!aadhaar) {
       return res.status(400).json({
+        success: false,
         message: "Aadhaar number is required",
       });
     }
 
     if (!/^[0-9]{12}$/.test(aadhaar)) {
       return res.status(400).json({
+        success: false,
         message: "Aadhaar must be exactly 12 digits",
       });
     }
 
-    const result = await db
+    if (isNaN(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course id",
+      });
+    }
+
+    let instructorResult = await db
       .select()
       .from(instructor)
       .where(eq(instructor.aadhaarNo, aadhaar))
       .limit(1);
 
-    if (result.length === 0) {
-      return res.status(404).json({
-        message: "Instructor not found",
-      });
+    if (instructorResult.length === 0) {
+      const studentResult = await db
+        .select()
+        .from(student)
+        .where(eq(student.aadhaarNo, aadhaar))
+        .limit(1);
+
+      if (studentResult.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No person found with this Aadhaar",
+        });
+      }
+
+      const studentData = studentResult[0];
+
+      const [newInstructor] = await db
+        .insert(instructor)
+        .values({
+          name: studentData.name,
+          dob: studentData.dob,
+          aadhaarNo: studentData.aadhaarNo,
+        })
+        .returning();
+
+      instructorResult = [newInstructor];
     }
+
+    const instructorData = instructorResult[0];
 
     const alreadyAssigned = await db
       .select()
@@ -704,23 +821,27 @@ export const getInstructorByAadhaar = async (req, res) => {
       .where(
         and(
           eq(taughtBy.courseId, courseId),
-          eq(taughtBy.instructorId, result[0].id),
+          eq(taughtBy.instructorId, instructorData.id),
         ),
       );
 
     if (alreadyAssigned.length > 0) {
       return res.status(409).json({
+        success: false,
         message: "Instructor already assigned to this course",
       });
     }
 
-    res.status(200).json({
-      data: result[0],
+    return res.status(200).json({
+      success: true,
+      data: instructorData,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      message: "Failed to search instructor",
+    console.error("Error searching instructor:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
     });
   }
 };
@@ -858,10 +979,19 @@ export const updateInstructorDetails = async (req, res) => {
     const instructorId = Number(req.params.instructorId);
     const { name, dob, aadhaarNo } = req.body;
 
+    if (isNaN(instructorId)) {
+      return res.status(400).json({
+        message: "Invalid instructor id",
+      });
+    }
+
+    /* ================= FIND INSTRUCTOR ================= */
+
     const existing = await db
       .select()
       .from(instructor)
-      .where(eq(instructor.id, instructorId));
+      .where(eq(instructor.id, instructorId))
+      .limit(1);
 
     if (existing.length === 0) {
       return res.status(404).json({
@@ -869,38 +999,90 @@ export const updateInstructorDetails = async (req, res) => {
       });
     }
 
+    const currentInstructor = existing[0];
+
+    /* ================= PREPARE UPDATE ================= */
+
     const updateData = {};
 
-    if (name !== undefined) updateData.name = name;
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+
+    /* ================= DOB VALIDATION ================= */
 
     if (dob !== undefined) {
       const dobDate = new Date(dob);
+
       if (isNaN(dobDate.getTime()) || dobDate >= new Date()) {
         return res.status(400).json({
           message: "Invalid date of birth",
         });
       }
+
       updateData.dob = dobDate;
     }
 
-    if (aadhaarNo !== undefined) updateData.aadhaarNo = aadhaarNo;
+    /* ================= GLOBAL AADHAAR VALIDATION ================= */
 
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        message: "No fields provided",
-      });
+    if (aadhaarNo !== undefined) {
+      if (!/^[0-9]{12}$/.test(aadhaarNo)) {
+        return res.status(400).json({
+          message: "Aadhaar must be exactly 12 digits",
+        });
+      }
+
+      if (aadhaarNo !== currentInstructor.aadhaarNo) {
+        // Check instructor table conflict
+        const conflictInstructor = await db
+          .select()
+          .from(instructor)
+          .where(eq(instructor.aadhaarNo, aadhaarNo));
+
+        if (conflictInstructor.length > 0) {
+          return res.status(409).json({
+            message: "Aadhaar already exists in instructor table",
+          });
+        }
+
+        // Check student table conflict also
+        const conflictStudent = await db
+          .select()
+          .from(student)
+          .where(eq(student.aadhaarNo, aadhaarNo));
+
+        if (conflictStudent.length > 0) {
+          return res.status(409).json({
+            message:
+              "Aadhaar already exists in student table. Identity conflict.",
+          });
+        }
+      }
+
+      updateData.aadhaarNo = aadhaarNo;
     }
 
-    await db
-      .update(instructor)
-      .set(updateData)
-      .where(eq(instructor.id, instructorId));
+    /* ================= NO FIELD CHECK ================= */
+
+    if (Object.keys(updateData).length > 0) {
+      await db
+        .update(student)
+        .set(updateData)
+        .where(eq(student.aadhaarNo, currentInstructor.aadhaarNo));
+
+      await db
+        .update(instructor)
+        .set(updateData)
+        .where(eq(instructor.id, instructorId));
+    }
 
     res.status(200).json({
       message: "Instructor updated successfully",
     });
   } catch (error) {
-    if (error.cause.code === "23505") {
+    console.error(error);
+
+    if (error?.cause?.code === "23505") {
       return res.status(409).json({
         message: "Aadhaar already exists",
       });
@@ -992,6 +1174,68 @@ export const getFinalProjectsByCourse = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Failed to fetch final projects" });
+  }
+};
+
+export const getFinalProjectByEnrollmentId = async (req, res) => {
+  try {
+    const enrollmentId = Number(req.params.enrollmentId);
+
+    /* ================= VALIDATION ================= */
+
+    if (isNaN(enrollmentId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid enrollment id",
+      });
+    }
+
+    /* ================= CHECK ENROLLMENT EXISTS ================= */
+
+    const enrollment = await db
+      .select()
+      .from(enrolledIn)
+      .where(eq(enrolledIn.id, enrollmentId))
+      .limit(1);
+
+    if (enrollment.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Enrollment not found",
+      });
+    }
+
+    /* ================= FETCH FINAL PROJECT ================= */
+
+    const project = await db
+      .select({
+        projectId: finalProject.id,
+        title: finalProject.title,
+        description: finalProject.description,
+        enrollmentId: finalProject.enrollmentId,
+      })
+      .from(finalProject)
+      .where(eq(finalProject.enrollmentId, enrollmentId))
+      .limit(1);
+
+    if (project.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: null,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: project[0],
+    });
+  } catch (error) {
+    console.error("Error fetching final project:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch final project",
+    });
   }
 };
 

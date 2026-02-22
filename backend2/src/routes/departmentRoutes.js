@@ -26,6 +26,7 @@ import {
 
   //final projects
   getFinalProjectsByCourse,
+  getFinalProjectByEnrollmentId,
   updateFinalProject,
   addFinalProject,
   deleteFinalProject,
@@ -101,6 +102,10 @@ departmentRouter.delete(
 departmentRouter.get(
   "/courses/:courseId/final-projects",
   getFinalProjectsByCourse,
+);
+departmentRouter.get(
+  "/enrollments/:enrollmentId/final-project",
+  getFinalProjectByEnrollmentId,
 );
 departmentRouter.post(
   "/enrollments/:enrollmentId/final-project",

@@ -12,6 +12,7 @@ import UpdateStudentModal from "../components/course/UpdateStudentModal";
 import AssignInstructorModal from "../components/course/AssignInstructorModal";
 import UpdateInstructorModal from "../components/course/UpdateInstructorModal";
 import FinalProjectModal from "../components/course/FinalProjectModal";
+import StudentFinalProjectModal from "../components/course/StudentFinalProjectModal";
 
 const CoursePage = () => {
   const { departmentId, courseId } = useParams();
@@ -24,6 +25,7 @@ const CoursePage = () => {
   const [showUpdateInstructorModal, setShowUpdateInstructorModal] =
     useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showStudentProjectModal, setShowStudentProjectModal] = useState(false);
 
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedInstructor, setSelectedInstructor] = useState(null);
@@ -54,14 +56,24 @@ const CoursePage = () => {
     if (courseId) {
       fetchStudentsByCourse(courseId, true);
     }
-  }, [courseId, showStudentModal, showUpdateStudentModal]);
+  }, [
+    courseId,
+    showStudentModal,
+    showUpdateStudentModal,
+    showUpdateInstructorModal,
+  ]);
 
   /* ================= LOAD INSTRUCTORS ================= */
   useEffect(() => {
     if (courseId) {
       fetchInstructorsByCourse(courseId);
     }
-  }, [courseId, showInstructorModal, showUpdateInstructorModal]);
+  }, [
+    courseId,
+    showInstructorModal,
+    showUpdateInstructorModal,
+    showUpdateStudentModal,
+  ]);
 
   if (!course) {
     return (
@@ -242,7 +254,7 @@ const CoursePage = () => {
                       setSelectedStudent(stu);
                       setShowUpdateStudentModal(true);
                     }}
-                    className="border rounded-lg p-4 bg-white hover:bg-gray-50 transition cursor-pointer flex justify-between"
+                    className="relative border rounded-lg p-4 bg-white hover:bg-gray-50 transition cursor-pointer flex justify-between"
                   >
                     <div className="space-y-1">
                       <p className="font-semibold text-base">{stu.name}</p>
@@ -266,6 +278,27 @@ const CoursePage = () => {
                       {" "}
                       Grade: {stu.grade ?? "N/A"}{" "}
                     </span>
+                    {/* Student Final Project Icon */}
+                    <div className="absolute bottom-3 right-3 group">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStudent(stu);
+                          setShowStudentProjectModal(true);
+                        }}
+                        className="p-2 border rounded-md hover:bg-black hover:text-white transition"
+                      >
+                        <FolderOpen size={16} />
+                      </button>
+
+                      <span
+                        className="absolute right-full mr-2 top-1/2 -translate-y-1/2
+               bg-black text-white text-xs px-2 py-1 rounded
+               opacity-0 group-hover:opacity-100 transition whitespace-nowrap"
+                      >
+                        View Final Project
+                      </span>
+                    </div>
                   </div>
                 ))
               ) : !studentLoading ? (
@@ -323,6 +356,15 @@ const CoursePage = () => {
       <FinalProjectModal
         open={showProjectModal}
         onClose={() => setShowProjectModal(false)}
+        courseId={courseId}
+      />
+      <StudentFinalProjectModal
+        open={showStudentProjectModal}
+        onClose={() => {
+          setShowStudentProjectModal(false);
+          setSelectedStudent(null);
+        }}
+        student={selectedStudent}
         courseId={courseId}
       />
       <Footer />

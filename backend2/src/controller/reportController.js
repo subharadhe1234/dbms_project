@@ -9,7 +9,7 @@ import {
   finalProject,
   academicDepartment,
 } from "../db/schema/schema.js";
-import { eq, and, gt, or, ilike, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export const getFacultyContinuingEducation = async (req, res) => {
   try {
@@ -74,17 +74,17 @@ export const getHighAchieversReport = async (req, res) => {
         courseTitle: course.title,
         grade: enrolledIn.grade,
         projectTitle: finalProject.title,
+        departmentName: academicDepartment.name,
       })
       .from(finalProject)
       .innerJoin(enrolledIn, eq(finalProject.enrollmentId, enrolledIn.id))
       .innerJoin(student, eq(enrolledIn.studentId, student.id))
       .innerJoin(course, eq(enrolledIn.courseId, course.id))
-      .where(
-        and(
-          //   eq(finalProject.isNotable, true),
-          eq(enrolledIn.grade, "A"),
-        ),
-      );
+      .innerJoin(
+        academicDepartment,
+        eq(course.departmentId, academicDepartment.id),
+      )
+      .where(eq(enrolledIn.grade, "A"));
 
     res.status(200).json({
       success: true,

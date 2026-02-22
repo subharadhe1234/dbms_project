@@ -86,7 +86,7 @@ const AdminPage = () => {
     <div className="min-h-screen flex flex-col ">
       <Navbar active="home" />
 
-      <div className="flex-1 pt-28 px-8 max-w-6xl mx-auto w-full">
+      <div className="flex-1 pt-28 px-8 max-w-6xl mx-auto w-full pb-6 ">
         {/* ================= HEADER ================= */}
         <div className="flex items-center justify-between mb-12">
           <h1 className="text-3xl font-semibold tracking-tight">Departments</h1>
@@ -196,6 +196,7 @@ const AdminPage = () => {
         open={subjectOpen}
         onClose={() => setSubjectOpen(false)}
       />
+
       <Footer />
     </div>
   );

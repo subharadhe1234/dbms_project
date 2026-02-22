@@ -43,9 +43,34 @@ function ReportPage() {
     0,
   );
 
+  const departmentStats = teachingLoad?.map((dept) => {
+    return {
+      shortName:
+        dept.departmentName.match(/[A-Z]/g)?.join("") ||
+        dept.departmentName.slice(0, 3).toUpperCase(),
+      totalCourses: Number(dept.totalCourses),
+      totalInstructors: Number(dept.totalInstructors),
+      totalStudents: Number(dept.totalStudents),
+    };
+  });
+
+  const intensityData = teachingLoad?.map((dept) => {
+    const students = Number(dept.totalStudents);
+    const instructors = Number(dept.totalInstructors);
+
+    return {
+      shortName:
+        dept.departmentName.match(/[A-Z]/g)?.join("") ||
+        dept.departmentName.slice(0, 3).toUpperCase(),
+
+      studentsPerInstructor:
+        instructors === 0 ? 0 : (students / instructors).toFixed(2),
+    };
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-white text-black">
-      <Navbar />
+      <Navbar active="reports" />
 
       <main className="flex-1 pt-24 pb-20 px-12 space-y-16">
         {/* ================= HEADER ================= */}
@@ -81,22 +106,34 @@ function ReportPage() {
           {/* ===== Teaching Load Chart ===== */}
           <div className="border p-8 rounded-2xl">
             <h2 className="text-xl font-semibold mb-6">
-              Teaching Load (Students)
+              Department Statistics (Teaching Load)
             </h2>
 
-            <div className="h-[350px]">
+            <div className="h-[400px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={teachingLoad}>
+                <BarChart data={departmentStats}>
                   <CartesianGrid strokeDasharray="3 3" />
+
                   <XAxis
                     dataKey="shortName"
-                    angle={-20}
+                    // angle={-15}
                     textAnchor="end"
                     height={60}
                   />
+
                   <YAxis />
+
                   <Tooltip />
-                  <Bar dataKey="totalStudents" fill="#000000" barSize={40} />
+
+                  <Bar dataKey="totalCourses" fill="#000000" name="Courses" />
+
+                  <Bar
+                    dataKey="totalInstructors"
+                    fill="#555555"
+                    name="Instructors"
+                  />
+
+                  <Bar dataKey="totalStudents" fill="#999999" name="Students" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -105,25 +142,30 @@ function ReportPage() {
           {/* ===== Intensity Chart ===== */}
           <div className="border p-8 rounded-2xl">
             <h2 className="text-xl font-semibold mb-6">
-              Students Per Instructor
+              Student–Instructor Intensity
             </h2>
 
-            <div className="h-[350px]">
+            <div className="h-[400px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={teachingLoad}>
+                <BarChart data={intensityData}>
                   <CartesianGrid strokeDasharray="3 3" />
+
                   <XAxis
                     dataKey="shortName"
-                    angle={-20}
+                    // angle={-15}
                     textAnchor="end"
                     height={60}
                   />
+
                   <YAxis />
+
                   <Tooltip />
+
                   <Bar
                     dataKey="studentsPerInstructor"
-                    fill="#4b5563"
-                    barSize={40}
+                    fill="#000000"
+                    name="Students per Instructor"
+                    barSize={35}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -138,24 +180,42 @@ function ReportPage() {
           </h2>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b">
-                <tr>
-                  <th className="py-3 text-left">Instructor</th>
-                  <th className="text-left">Department</th>
-                  <th className="text-left">Program</th>
-                </tr>
-              </thead>
-              <tbody>
-                {facultyEducation.map((f, index) => (
-                  <tr key={index} className="border-b hover:bg-gray-50">
-                    <td className="py-3 font-medium">{f.name}</td>
-                    <td>{f.departmentName}</td>
-                    <td>{f.programName}</td>
+            <div className="max-h-[300px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b sticky top-0 bg-white">
+                  <tr>
+                    <th className="py-3 text-left">Instructor ID</th>
+                    <th className="text-left">Student ID</th>
+                    <th className="text-left">Instructor Name</th>
+                    <th className="text-left">Aadhaar No</th>
+                    <th className="text-left">Date of Birth</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+
+                <tbody>
+                  {facultyEducation && facultyEducation.length > 0 ? (
+                    facultyEducation.map((f, index) => (
+                      <tr key={index} className="border-b hover:bg-gray-50">
+                        <td className="py-3">{f.instructorId}</td>
+                        <td>{f.studentId}</td>
+                        <td className="font-medium">{f.instructorName}</td>
+                        <td>{f.aadhaarNo}</td>
+                        <td>{new Date(f.dob).toLocaleDateString("en-GB")}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan="5"
+                        className="text-center py-10 text-gray-500"
+                      >
+                        No faculty education records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 
@@ -165,27 +225,49 @@ function ReportPage() {
             Notable Final Project Contributors
           </h2>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {highAchievers.map((student, index) => (
-              <div
-                key={index}
-                className="border p-6 rounded-xl hover:shadow-md transition"
-              >
-                <h3 className="font-semibold text-lg">{student.studentName}</h3>
+          <div className="overflow-x-auto">
+            <div className="max-h-[300px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b sticky top-0 bg-white">
+                  <tr>
+                    <th className="py-3 text-left">Student ID</th>
+                    <th className="text-left">Student Name</th>
+                    <th className="text-left">Project Title</th>
+                    <th className="text-left">Course Title</th>
+                    <th className="text-left">Department</th>
+                    <th className="text-left">Grade</th>
+                  </tr>
+                </thead>
 
-                <p className="text-sm text-gray-600 mt-2">
-                  Project: {student.projectTitle}
-                </p>
-
-                <p className="text-sm text-gray-600">
-                  Department: {student.departmentName}
-                </p>
-
-                <span className="inline-block mt-4 px-4 py-1 text-xs font-semibold border rounded-full">
-                  Grade: {student.grade}
-                </span>
-              </div>
-            ))}
+                <tbody>
+                  {highAchievers && highAchievers.length > 0 ? (
+                    highAchievers.map((student, index) => (
+                      <tr key={index} className="border-b hover:bg-gray-50">
+                        <td className="py-3">{student.studentId}</td>
+                        <td className="font-medium">{student.studentName}</td>
+                        <td>{student.projectTitle}</td>
+                        <td>{student.courseTitle}</td>
+                        <td>{student.departmentName}</td>
+                        <td>
+                          <span className="px-3 py-1 text-xs font-semibold border rounded-full">
+                            {student.grade}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan="6"
+                        className="text-center py-10 text-gray-500"
+                      >
+                        No notable contributors found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       </main>

@@ -1,6 +1,6 @@
 import { db } from "../db/db.js";
 import { academicDepartment, user, subjectArea } from "../db/schema/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 //Departments
