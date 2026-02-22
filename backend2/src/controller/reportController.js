@@ -22,7 +22,16 @@ export const getFacultyContinuingEducation = async (req, res) => {
         dob: instructor.dob,
       })
       .from(instructor)
-      .innerJoin(student, eq(instructor.aadhaarNo, student.aadhaarNo));
+      .innerJoin(student, eq(instructor.aadhaarNo, student.aadhaarNo))
+      .innerJoin(enrolledIn, eq(student.id, enrolledIn.studentId))
+      .innerJoin(taughtBy, eq(instructor.id, taughtBy.instructorId))
+      .groupBy(
+        instructor.id,
+        instructor.name,
+        student.id,
+        instructor.aadhaarNo,
+        instructor.dob,
+      );
 
     res.status(200).json({
       success: true,
